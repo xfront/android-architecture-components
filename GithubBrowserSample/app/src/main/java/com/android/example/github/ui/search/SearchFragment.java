@@ -16,14 +16,6 @@
 
 package com.android.example.github.ui.search;
 
-import com.android.example.github.R;
-import com.android.example.github.binding.FragmentDataBindingComponent;
-import com.android.example.github.databinding.SearchFragmentBinding;
-import com.android.example.github.di.Injectable;
-import com.android.example.github.ui.common.NavigationController;
-import com.android.example.github.ui.common.RepoListAdapter;
-import com.android.example.github.util.AutoClearedValue;
-
 import android.arch.lifecycle.ViewModelProvider;
 import android.arch.lifecycle.ViewModelProviders;
 import android.content.Context;
@@ -33,7 +25,6 @@ import android.os.Bundle;
 import android.os.IBinder;
 import android.support.annotation.Nullable;
 import android.support.design.widget.Snackbar;
-import android.support.v4.app.Fragment;
 import android.support.v4.app.FragmentActivity;
 import android.support.v7.widget.LinearLayoutManager;
 import android.support.v7.widget.RecyclerView;
@@ -45,11 +36,19 @@ import android.view.ViewGroup;
 import android.view.inputmethod.EditorInfo;
 import android.view.inputmethod.InputMethodManager;
 
+import com.android.example.github.R;
+import com.android.example.github.binding.FragmentDataBindingComponent;
+import com.android.example.github.databinding.SearchFragmentBinding;
+import com.android.example.github.ui.common.BaseFragment;
+import com.android.example.github.ui.common.NavigationController;
+import com.android.example.github.ui.common.RepoListAdapter;
+import com.android.example.github.util.AutoClearedValue;
+
 import javax.inject.Inject;
 
 import io.reactivex.android.schedulers.AndroidSchedulers;
 
-public class SearchFragment extends Fragment implements Injectable {
+public class SearchFragment extends BaseFragment {
 
     @Inject
     ViewModelProvider.Factory viewModelFactory;
@@ -68,7 +67,7 @@ public class SearchFragment extends Fragment implements Injectable {
     @Nullable
     @Override
     public View onCreateView(LayoutInflater inflater, @Nullable ViewGroup container,
-            @Nullable Bundle savedInstanceState) {
+                             @Nullable Bundle savedInstanceState) {
         SearchFragmentBinding dataBinding = DataBindingUtil
                 .inflate(inflater, R.layout.search_fragment, container, false,
                         dataBindingComponent);
@@ -99,6 +98,7 @@ public class SearchFragment extends Fragment implements Injectable {
             }
             return false;
         });
+
         binding.get().input.setOnKeyListener((v, keyCode, event) -> {
             if ((event.getAction() == KeyEvent.ACTION_DOWN)
                     && (keyCode == KeyEvent.KEYCODE_ENTER)) {
@@ -118,7 +118,6 @@ public class SearchFragment extends Fragment implements Injectable {
     }
 
     private void initRecyclerView() {
-
         binding.get().repoList.addOnScrollListener(new OnScrollListener() {
             @Override
             public void onScrolled(RecyclerView recyclerView, int dx, int dy) {
@@ -131,26 +130,32 @@ public class SearchFragment extends Fragment implements Injectable {
                 }
             }
         });
-        searchViewModel.getResults().observeOn(AndroidSchedulers.mainThread()).subscribe(result -> {
-            binding.get().setSearchResource(result);
-            binding.get().setResultCount((result == null || result.data == null)
-                    ? 0 : result.data.size());
-            adapter.get().replace(result == null ? null : result.data);
-            binding.get().executePendingBindings();
-        });
 
-        searchViewModel.getLoadMoreStatus().observeOn(AndroidSchedulers.mainThread()).subscribe(loadingMore -> {
-            if (loadingMore == null) {
-                binding.get().setLoadingMore(false);
-            } else {
-                binding.get().setLoadingMore(loadingMore.isRunning());
-                String error = loadingMore.getErrorMessageIfNotHandled();
-                if (error != null) {
-                    Snackbar.make(binding.get().loadMoreBar, error, Snackbar.LENGTH_LONG).show();
-                }
-            }
-            binding.get().executePendingBindings();
-        });
+        searchViewModel.getResults()
+                .compose(this.bindToLifecycle())
+                .observeOn(AndroidSchedulers.mainThread())
+                .subscribe(result -> {
+                    binding.get().setSearchResource(result);
+                    binding.get().setResultCount((result.data == null) ? 0 : result.data.size());
+                    adapter.get().replace(result.data);
+                    binding.get().executePendingBindings();
+                });
+
+        searchViewModel.getLoadMoreStatus()
+                .compose(this.bindToLifecycle())
+                .observeOn(AndroidSchedulers.mainThread())
+                .subscribe(loadingMore -> {
+                    if (loadingMore == null) {
+                        binding.get().setLoadingMore(false);
+                    } else {
+                        binding.get().setLoadingMore(loadingMore.isRunning());
+                        String error = loadingMore.getErrorMessageIfNotHandled();
+                        if (error != null) {
+                            Snackbar.make(binding.get().loadMoreBar, error, Snackbar.LENGTH_LONG).show();
+                        }
+                    }
+                    binding.get().executePendingBindings();
+                });
     }
 
     private void dismissKeyboard(IBinder windowToken) {

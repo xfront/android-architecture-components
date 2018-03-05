@@ -16,16 +16,17 @@
 
 package com.android.example.github.ui.repo;
 
+import android.arch.lifecycle.ViewModel;
+import android.support.annotation.VisibleForTesting;
+
 import com.android.example.github.repository.RepoRepository;
 import com.android.example.github.vo.Contributor;
 import com.android.example.github.vo.Repo;
 import com.android.example.github.vo.Resource;
 import com.google.common.base.Optional;
 
-import android.arch.lifecycle.ViewModel;
-import android.support.annotation.VisibleForTesting;
-
 import java.util.List;
+
 import javax.inject.Inject;
 
 import io.reactivex.BackpressureStrategy;
@@ -41,8 +42,8 @@ public class RepoViewModel extends ViewModel {
     @Inject
     public RepoViewModel(RepoRepository repository) {
         this.repoId = PublishSubject.create();
-        repo = repoId.toFlowable(BackpressureStrategy.LATEST).flatMap(input->repository.loadRepo(input.owner, input.name));
-        contributors = repoId.toFlowable(BackpressureStrategy.LATEST).flatMap(input->repository.loadContributors(input.owner, input.name));
+        repo = repoId.toFlowable(BackpressureStrategy.LATEST).flatMap(input -> repository.loadRepo(input.owner, input.name));
+        contributors = repoId.toFlowable(BackpressureStrategy.LATEST).flatMap(input -> repository.loadContributors(input.owner, input.name));
 
     }
 

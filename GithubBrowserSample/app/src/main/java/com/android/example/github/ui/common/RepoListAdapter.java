@@ -16,15 +16,15 @@
 
 package com.android.example.github.ui.common;
 
-import com.android.example.github.R;
-import com.android.example.github.databinding.RepoItemBinding;
-import com.android.example.github.util.Objects;
-import com.android.example.github.vo.Repo;
-
 import android.databinding.DataBindingComponent;
 import android.databinding.DataBindingUtil;
 import android.view.LayoutInflater;
 import android.view.ViewGroup;
+
+import com.android.example.github.R;
+import com.android.example.github.databinding.RepoItemBinding;
+import com.android.example.github.util.Objects;
+import com.android.example.github.vo.Repo;
 
 /**
  * A RecyclerView adapter for {@link Repo} class.
@@ -35,7 +35,7 @@ public class RepoListAdapter extends DataBoundListAdapter<Repo, RepoItemBinding>
     private final boolean showFullName;
 
     public RepoListAdapter(DataBindingComponent dataBindingComponent, boolean showFullName,
-            RepoClickCallback repoClickCallback) {
+                           RepoClickCallback repoClickCallback) {
         this.dataBindingComponent = dataBindingComponent;
         this.repoClickCallback = repoClickCallback;
         this.showFullName = showFullName;

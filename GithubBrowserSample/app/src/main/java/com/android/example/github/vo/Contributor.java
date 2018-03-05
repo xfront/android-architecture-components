@@ -16,11 +16,11 @@
 
 package com.android.example.github.vo;
 
-import com.google.gson.annotations.SerializedName;
-
 import android.arch.persistence.room.Entity;
 import android.arch.persistence.room.ForeignKey;
 import android.support.annotation.NonNull;
+
+import com.google.gson.annotations.SerializedName;
 
 @Entity(primaryKeys = {"repoName", "repoOwner", "login"},
         foreignKeys = @ForeignKey(entity = Repo.class,
@@ -52,14 +52,6 @@ public class Contributor {
         this.avatarUrl = avatarUrl;
     }
 
-    public void setRepoName(String repoName) {
-        this.repoName = repoName;
-    }
-
-    public void setRepoOwner(String repoOwner) {
-        this.repoOwner = repoOwner;
-    }
-
     public String getLogin() {
         return login;
     }
@@ -76,7 +68,15 @@ public class Contributor {
         return repoName;
     }
 
+    public void setRepoName(String repoName) {
+        this.repoName = repoName;
+    }
+
     public String getRepoOwner() {
         return repoOwner;
+    }
+
+    public void setRepoOwner(String repoOwner) {
+        this.repoOwner = repoOwner;
     }
 }

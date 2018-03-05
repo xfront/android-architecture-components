@@ -15,17 +15,23 @@
  */
 
 package com.android.example.github.repository;
-import com.android.example.github.vo.Resource;
 
 import android.support.annotation.NonNull;
+
+import com.android.example.github.vo.Resource;
+import com.google.common.util.concurrent.AbstractScheduledService;
+
 import io.reactivex.BackpressureStrategy;
 import io.reactivex.Flowable;
+import io.reactivex.Scheduler;
+import io.reactivex.schedulers.Schedulers;
 
 /**
  * A generic class that can provide a resource backed by both the sqlite database and the network.
  * <p>
  * You can read more about it in the <a href="https://developer.android.com/arch">Architecture
  * Guide</a>.
+ *
  * @param <DBType>
  * @param <NetType>
  */
@@ -35,13 +41,17 @@ public abstract class NetworkBoundResource<DBType, NetType> {
         return Flowable.create(emitter -> {
             emitter.onNext(Resource.loading(null));
             Flowable<DBType> dbSource = loadFromDb();
-            dbSource.subscribe(r -> {
+            dbSource.subscribeOn(Schedulers.io())
+                    .subscribe(r -> {
                         if (shouldFetch(r)) {
                             emitter.onNext(Resource.loading(null));
                             fetchFromNet()
                                     .retry(2)
                                     .subscribe(this::saveCallResult,
-                                            e -> {onFetchFailed(e); emitter.onNext(Resource.error(e.getMessage(), null));}
+                                            e -> {
+                                                onFetchFailed(e);
+                                                emitter.onNext(Resource.error(e.getMessage(), null));
+                                            }
                                     );
                         } else {
                             emitter.onNext(Resource.success(r));

@@ -19,7 +19,6 @@ package com.android.example.github.repository;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
 
-import com.android.example.github.AppExecutors;
 import com.android.example.github.api.GithubService;
 import com.android.example.github.api.RepoSearchResponse;
 import com.android.example.github.db.GithubDb;
@@ -31,7 +30,7 @@ import com.android.example.github.vo.RepoSearchResult;
 import com.android.example.github.vo.Resource;
 import com.google.common.base.Optional;
 
-import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
@@ -57,17 +56,15 @@ public class RepoRepository {
 
     private final GithubService githubService;
 
-    private final AppExecutors appExecutors;
 
     private RateLimiter<String> repoListRateLimit = new RateLimiter<>(10, TimeUnit.MINUTES);
 
     @Inject
-    public RepoRepository(AppExecutors appExecutors, GithubDb db, RepoDao repoDao,
+    public RepoRepository( GithubDb db, RepoDao repoDao,
                           GithubService githubService) {
         this.db = db;
         this.repoDao = repoDao;
         this.githubService = githubService;
-        this.appExecutors = appExecutors;
     }
 
     public Flowable<Resource<List<Repo>>> loadRepos(String owner) {
@@ -202,7 +199,7 @@ public class RepoRepository {
                             if (r.isPresent())
                                 return repoDao.loadOrdered(r.get().repoIds);
                             else
-                                return Flowable.just(new ArrayList<Repo>());
+                                return Flowable.just(Collections.emptyList());
                         }
                 );
             }

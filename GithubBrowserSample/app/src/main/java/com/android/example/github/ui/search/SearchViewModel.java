@@ -16,16 +16,16 @@
 
 package com.android.example.github.ui.search;
 
-import com.android.example.github.repository.RepoRepository;
-import com.android.example.github.util.Objects;
-import com.android.example.github.vo.Repo;
-import com.android.example.github.vo.Resource;
-
 import android.arch.lifecycle.ViewModel;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
 import android.support.annotation.VisibleForTesting;
 import android.text.TextUtils;
+
+import com.android.example.github.repository.RepoRepository;
+import com.android.example.github.util.Objects;
+import com.android.example.github.vo.Repo;
+import com.android.example.github.vo.Resource;
 
 import java.util.List;
 import java.util.Locale;
@@ -35,21 +35,22 @@ import javax.inject.Inject;
 import io.reactivex.BackpressureStrategy;
 import io.reactivex.Flowable;
 import io.reactivex.Observable;
+import io.reactivex.Scheduler;
+import io.reactivex.android.schedulers.AndroidSchedulers;
+import io.reactivex.schedulers.Schedulers;
 import io.reactivex.subjects.PublishSubject;
 
 public class SearchViewModel extends ViewModel {
 
     private final PublishSubject<String> query = PublishSubject.create();
-    private String input;
-
     private final Flowable<Resource<List<Repo>>> results;
-
     private final NextPageHandler nextPageHandler;
+    private String input;
 
     @Inject
     SearchViewModel(RepoRepository repoRepository) {
         nextPageHandler = new NextPageHandler(repoRepository);
-        
+
         results = query.toFlowable(BackpressureStrategy.LATEST).flatMap(r -> repoRepository.search(r));
     }
 
@@ -111,10 +112,10 @@ public class SearchViewModel extends ViewModel {
     @VisibleForTesting
     static class NextPageHandler {
         private final PublishSubject<LoadMoreState> loadMoreState = PublishSubject.create();
-        private String query;
         private final RepoRepository repository;
         @VisibleForTesting
         boolean hasMore;
+        private String query;
 
         @VisibleForTesting
         NextPageHandler(RepoRepository repository) {
@@ -132,7 +133,9 @@ public class SearchViewModel extends ViewModel {
             loadMoreState.onNext(new LoadMoreState(true, null));
             //noinspection ConstantConditions
             repository.searchNextPage(query)
-                    .subscribe(r->{this.onChanged(r);});
+                    .subscribe(r -> {
+                        this.onChanged(r);
+                    });
         }
 
 

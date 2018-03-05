@@ -16,15 +16,15 @@
 
 package com.android.example.github.ui.user;
 
+import android.arch.lifecycle.ViewModel;
+import android.support.annotation.VisibleForTesting;
+
 import com.android.example.github.repository.RepoRepository;
 import com.android.example.github.repository.UserRepository;
 import com.android.example.github.vo.Repo;
 import com.android.example.github.vo.Resource;
 import com.android.example.github.vo.User;
 import com.google.common.base.Optional;
-
-import android.arch.lifecycle.ViewModel;
-import android.support.annotation.VisibleForTesting;
 
 import java.util.List;
 
@@ -39,6 +39,7 @@ public class UserViewModel extends ViewModel {
     final PublishSubject<String> login = PublishSubject.create();
     private final Flowable<Resource<List<Repo>>> repositories;
     private final Flowable<Resource<Optional<User>>> user;
+
     @SuppressWarnings("unchecked")
     @Inject
     public UserViewModel(UserRepository userRepository, RepoRepository repoRepository) {

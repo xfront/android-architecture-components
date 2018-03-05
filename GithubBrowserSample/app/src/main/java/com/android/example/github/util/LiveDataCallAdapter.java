@@ -17,9 +17,9 @@
 package com.android.example.github.util;
 
 
-import com.android.example.github.api.ApiResponse;
-
 import android.arch.lifecycle.LiveData;
+
+import com.android.example.github.api.ApiResponse;
 
 import java.lang.reflect.Type;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -31,10 +31,12 @@ import retrofit2.Response;
 
 /**
  * A Retrofit adapter that converts the Call into a LiveData of ApiResponse.
+ *
  * @param <R>
  */
 public class LiveDataCallAdapter<R> implements CallAdapter<R, LiveData<ApiResponse<R>>> {
     private final Type responseType;
+
     public LiveDataCallAdapter(Type responseType) {
         this.responseType = responseType;
     }
@@ -48,6 +50,7 @@ public class LiveDataCallAdapter<R> implements CallAdapter<R, LiveData<ApiRespon
     public LiveData<ApiResponse<R>> adapt(Call<R> call) {
         return new LiveData<ApiResponse<R>>() {
             AtomicBoolean started = new AtomicBoolean(false);
+
             @Override
             protected void onActive() {
                 super.onActive();

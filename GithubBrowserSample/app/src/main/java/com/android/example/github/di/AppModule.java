@@ -23,7 +23,6 @@ import com.android.example.github.api.GithubService;
 import com.android.example.github.db.GithubDb;
 import com.android.example.github.db.RepoDao;
 import com.android.example.github.db.UserDao;
-import com.android.example.github.util.LiveDataCallAdapterFactory;
 
 import javax.inject.Singleton;
 
@@ -35,7 +34,8 @@ import retrofit2.converter.gson.GsonConverterFactory;
 
 @Module(includes = ViewModelModule.class)
 class AppModule {
-    @Singleton @Provides
+    @Singleton
+    @Provides
     static GithubService provideGithubService() {
         return new Retrofit.Builder()
                 .baseUrl("https://api.github.com/")
@@ -45,17 +45,20 @@ class AppModule {
                 .create(GithubService.class);
     }
 
-    @Singleton @Provides
+    @Singleton
+    @Provides
     static GithubDb provideDb(Application app) {
-        return Room.databaseBuilder(app, GithubDb.class,"github.db").build();
+        return Room.databaseBuilder(app, GithubDb.class, "github.db").build();
     }
 
-    @Singleton @Provides
+    @Singleton
+    @Provides
     static UserDao provideUserDao(GithubDb db) {
         return db.userDao();
     }
 
-    @Singleton @Provides
+    @Singleton
+    @Provides
     static RepoDao provideRepoDao(GithubDb db) {
         return db.repoDao();
     }

@@ -26,6 +26,7 @@ import java.util.List;
 import java.util.concurrent.Callable;
 
 import io.reactivex.Flowable;
+import io.reactivex.schedulers.Schedulers;
 
 /**
  * A task that reads the search result in the database and fetches the next page, if it has one.
@@ -42,32 +43,37 @@ public class FetchNextSearchPageTask implements Callable {
     }
 
     public Flowable<Resource<Boolean>> call() {
-        RepoSearchResult current = db.repoDao().findSearchResult(query);
-        if (current == null) {
-            return Flowable.empty();
-        }
-        final Integer nextPage = current.next;
-        if (nextPage == null) {
-            return Flowable.just(Resource.success(false));
-        }
+        return db.repoDao().search(query)
+                .subscribeOn(Schedulers.io())
+                .flatMap(sr -> {
+                    if (!sr.isPresent())
+                        return Flowable.empty();
 
-        return githubService.searchRepos(query, nextPage).map(r -> {
-            // we merge all repo ids into 1 list so that it is easier to fetch the result list.
-            List<Integer> ids = new ArrayList<>();
-            ids.addAll(current.repoIds);
-            //noinspection ConstantConditions
-            ids.addAll(r.getRepoIds());
-            RepoSearchResult merged = new RepoSearchResult(query, ids,
-                    r.getTotal(), r.getNextPage());
-            try {
-                db.beginTransaction();
-                db.repoDao().insert(merged);
-                db.repoDao().insertRepos(r.getItems());
-                db.setTransactionSuccessful();
-            } finally {
-                db.endTransaction();
-            }
-            return (Resource.success(r.getNextPage() != null));
-        });
+                    final RepoSearchResult current = sr.get();
+                    if (current.next == null) {
+                        return Flowable.just(Resource.success(false));
+                    }
+
+                    return githubService.searchRepos(query, current.next).map(r -> {
+                        // we merge all repo ids into 1 list so that it is easier to fetch the result list.
+                        List<Integer> ids = new ArrayList<>();
+                        ids.addAll(current.repoIds);
+                        //noinspection ConstantConditions
+                        ids.addAll(r.getRepoIds());
+                        RepoSearchResult merged = new RepoSearchResult(query, ids,
+                                r.getTotal(), r.getNextPage());
+                        try {
+                            db.beginTransaction();
+                            db.repoDao().insert(merged);
+                            db.repoDao().insertRepos(r.getItems());
+                            db.setTransactionSuccessful();
+                        } finally {
+                            db.endTransaction();
+                        }
+                        return (Resource.success(r.getNextPage() != null));
+                    });
+                });
     }
+
+    ;
 }

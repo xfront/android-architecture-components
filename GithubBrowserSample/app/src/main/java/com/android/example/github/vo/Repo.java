@@ -16,21 +16,19 @@
 
 package com.android.example.github.vo;
 
-import com.google.gson.annotations.SerializedName;
-
 import android.arch.persistence.room.Embedded;
 import android.arch.persistence.room.Entity;
 import android.arch.persistence.room.Index;
 import android.support.annotation.NonNull;
 
-import javax.inject.Inject;
+import com.google.gson.annotations.SerializedName;
 
 /**
  * Using name/owner_login as primary key instead of id since name/owner_login is always available
  * vs id is not.
  */
 @Entity(indices = {@Index("id"), @Index("owner_login")},
-    primaryKeys = {"name", "owner_login"})
+        primaryKeys = {"name", "owner_login"})
 public class Repo {
     public static final int UNKNOWN_ID = -1;
     public final int id;

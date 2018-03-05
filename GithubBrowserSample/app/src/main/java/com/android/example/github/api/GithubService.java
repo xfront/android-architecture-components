@@ -20,12 +20,9 @@ import com.android.example.github.vo.Contributor;
 import com.android.example.github.vo.Repo;
 import com.android.example.github.vo.User;
 
-import android.arch.lifecycle.LiveData;
-
 import java.util.List;
 
 import io.reactivex.Flowable;
-import retrofit2.Call;
 import retrofit2.http.GET;
 import retrofit2.http.Path;
 import retrofit2.http.Query;

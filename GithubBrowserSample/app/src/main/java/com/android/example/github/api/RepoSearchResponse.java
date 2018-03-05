@@ -17,11 +17,10 @@
 package com.android.example.github.api;
 
 
-import com.google.gson.annotations.SerializedName;
+import android.support.annotation.NonNull;
 
 import com.android.example.github.vo.Repo;
-
-import android.support.annotation.NonNull;
+import com.google.gson.annotations.SerializedName;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -53,12 +52,12 @@ public class RepoSearchResponse {
         this.items = items;
     }
 
-    public void setNextPage(Integer nextPage) {
-        this.nextPage = nextPage;
-    }
-
     public Integer getNextPage() {
         return nextPage;
+    }
+
+    public void setNextPage(Integer nextPage) {
+        this.nextPage = nextPage;
     }
 
     @NonNull

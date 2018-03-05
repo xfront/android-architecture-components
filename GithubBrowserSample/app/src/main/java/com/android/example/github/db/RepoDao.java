@@ -16,17 +16,17 @@
 
 package com.android.example.github.db;
 
-import com.android.example.github.vo.Contributor;
-import com.android.example.github.vo.Repo;
-import com.android.example.github.vo.RepoSearchResult;
-import com.google.common.base.Optional;
-
 import android.arch.persistence.room.Dao;
 import android.arch.persistence.room.Insert;
 import android.arch.persistence.room.OnConflictStrategy;
 import android.arch.persistence.room.Query;
 import android.arch.persistence.room.RoomWarnings;
 import android.util.SparseIntArray;
+
+import com.android.example.github.vo.Contributor;
+import com.android.example.github.vo.Repo;
+import com.android.example.github.vo.RepoSearchResult;
+import com.google.common.base.Optional;
 
 import java.util.Collections;
 import java.util.List;

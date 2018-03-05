@@ -16,9 +16,9 @@
 
 package com.android.example.github.di;
 
-import com.android.example.github.GithubApp;
-
 import android.app.Application;
+
+import com.android.example.github.GithubApp;
 
 import javax.inject.Singleton;
 
@@ -33,10 +33,13 @@ import dagger.android.AndroidInjectionModule;
         MainActivityModule.class
 })
 public interface AppComponent {
+    void inject(GithubApp githubApp);
+
     @Component.Builder
     interface Builder {
-        @BindsInstance Builder application(Application application);
+        @BindsInstance
+        Builder application(Application application);
+
         AppComponent build();
     }
-    void inject(GithubApp githubApp);
 }

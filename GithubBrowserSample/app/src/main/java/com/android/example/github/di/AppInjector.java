@@ -16,14 +16,14 @@
 
 package com.android.example.github.di;
 
-import com.android.example.github.GithubApp;
-
 import android.app.Activity;
 import android.app.Application;
 import android.os.Bundle;
 import android.support.v4.app.Fragment;
 import android.support.v4.app.FragmentActivity;
 import android.support.v4.app.FragmentManager;
+
+import com.android.example.github.GithubApp;
 
 import dagger.android.AndroidInjection;
 import dagger.android.support.AndroidSupportInjection;
@@ -33,7 +33,9 @@ import dagger.android.support.HasSupportFragmentInjector;
  * Helper class to automatically inject fragments if they implement {@link Injectable}.
  */
 public class AppInjector {
-    private AppInjector() {}
+    private AppInjector() {
+    }
+
     public static void init(GithubApp githubApp) {
         DaggerAppComponent.builder().application(githubApp)
                 .build().inject(githubApp);
@@ -86,7 +88,7 @@ public class AppInjector {
                             new FragmentManager.FragmentLifecycleCallbacks() {
                                 @Override
                                 public void onFragmentCreated(FragmentManager fm, Fragment f,
-                                        Bundle savedInstanceState) {
+                                                              Bundle savedInstanceState) {
                                     if (f instanceof Injectable) {
                                         AndroidSupportInjection.inject(f);
                                     }

@@ -30,15 +30,16 @@ import android.view.ViewGroup;
 import com.android.example.github.R;
 import com.android.example.github.binding.FragmentDataBindingComponent;
 import com.android.example.github.databinding.UserFragmentBinding;
+import com.android.example.github.ui.common.BaseFragment;
 import com.android.example.github.ui.common.NavigationController;
 import com.android.example.github.ui.common.RepoListAdapter;
 import com.android.example.github.util.AutoClearedValue;
 
 import javax.inject.Inject;
 
-import dagger.android.support.DaggerFragment;
+import io.reactivex.android.schedulers.AndroidSchedulers;
 
-public class UserFragment extends DaggerFragment {
+public class UserFragment extends BaseFragment {
     private static final String LOGIN_KEY = "login";
     @Inject
     ViewModelProvider.Factory viewModelFactory;
@@ -46,9 +47,9 @@ public class UserFragment extends DaggerFragment {
     NavigationController navigationController;
 
     DataBindingComponent dataBindingComponent = new FragmentDataBindingComponent(this);
-    private UserViewModel userViewModel;
     @VisibleForTesting
     AutoClearedValue<UserFragmentBinding> binding;
+    private UserViewModel userViewModel;
     private AutoClearedValue<RepoListAdapter> adapter;
 
     public static UserFragment create(String login) {
@@ -62,7 +63,7 @@ public class UserFragment extends DaggerFragment {
     @Nullable
     @Override
     public View onCreateView(LayoutInflater inflater, @Nullable ViewGroup container,
-            @Nullable Bundle savedInstanceState) {
+                             @Nullable Bundle savedInstanceState) {
         UserFragmentBinding dataBinding = DataBindingUtil.inflate(inflater, R.layout.user_fragment,
                 container, false, dataBindingComponent);
         dataBinding.setRetryCallback(() -> userViewModel.retry());
@@ -75,12 +76,15 @@ public class UserFragment extends DaggerFragment {
         super.onActivityCreated(savedInstanceState);
         userViewModel = ViewModelProviders.of(this, viewModelFactory).get(UserViewModel.class);
         userViewModel.setLogin(getArguments().getString(LOGIN_KEY));
-        userViewModel.getUser().subscribe(userResource -> {
-            binding.get().setUser(userResource.data.orNull());
-            binding.get().setUserResource(userResource);
-            // this is only necessary because espresso cannot read data binding callbacks.
-            binding.get().executePendingBindings();
-        });
+        userViewModel.getUser()
+                .compose(this.bindToLifecycle())
+                .observeOn(AndroidSchedulers.mainThread())
+                .subscribe(userResource -> {
+                    binding.get().setUser(userResource.data.orNull());
+                    binding.get().setUserResource(userResource);
+                    // this is only necessary because espresso cannot read data binding callbacks.
+                    binding.get().executePendingBindings();
+                });
         RepoListAdapter rvAdapter = new RepoListAdapter(dataBindingComponent, false,
                 repo -> navigationController.navigateToRepo(repo.owner.login, repo.name));
         binding.get().repoList.setAdapter(rvAdapter);
@@ -89,14 +93,17 @@ public class UserFragment extends DaggerFragment {
     }
 
     private void initRepoList() {
-        userViewModel.getRepositories().subscribe(repos -> {
-            // no null checks for adapter.get() since LiveData guarantees that we'll not receive
-            // the event if fragment is now show.
-            if (repos == null) {
-                adapter.get().replace(null);
-            } else {
-                adapter.get().replace(repos.data);
-            }
-        });
+        userViewModel.getRepositories()
+                .compose(this.bindToLifecycle())
+                .observeOn(AndroidSchedulers.mainThread())
+                .subscribe(repos -> {
+                    // no null checks for adapter.get() since LiveData guarantees that we'll not receive
+                    // the event if fragment is now show.
+                    if (repos.data == null) {
+                        adapter.get().replace(null);
+                    } else {
+                        adapter.get().replace(repos.data);
+                    }
+                });
     }
 }
