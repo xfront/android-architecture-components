@@ -17,77 +17,68 @@
 package com.android.example.github.ui.search;
 
 import com.android.example.github.repository.RepoRepository;
-import com.android.example.github.util.AbsentLiveData;
 import com.android.example.github.util.Objects;
 import com.android.example.github.vo.Repo;
 import com.android.example.github.vo.Resource;
 
-import android.arch.lifecycle.LiveData;
-import android.arch.lifecycle.MutableLiveData;
-import android.arch.lifecycle.Observer;
-import android.arch.lifecycle.Transformations;
 import android.arch.lifecycle.ViewModel;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
 import android.support.annotation.VisibleForTesting;
+import android.text.TextUtils;
 
 import java.util.List;
 import java.util.Locale;
 
 import javax.inject.Inject;
 
+import io.reactivex.BackpressureStrategy;
+import io.reactivex.Flowable;
+import io.reactivex.Observable;
+import io.reactivex.subjects.PublishSubject;
+
 public class SearchViewModel extends ViewModel {
 
-    private final MutableLiveData<String> query = new MutableLiveData<>();
+    private final PublishSubject<String> query = PublishSubject.create();
+    private String input;
 
-    private final LiveData<Resource<List<Repo>>> results;
+    private final Flowable<Resource<List<Repo>>> results;
 
     private final NextPageHandler nextPageHandler;
 
     @Inject
     SearchViewModel(RepoRepository repoRepository) {
         nextPageHandler = new NextPageHandler(repoRepository);
-        results = Transformations.switchMap(query, search -> {
-            if (search == null || search.trim().length() == 0) {
-                return AbsentLiveData.create();
-            } else {
-                return repoRepository.search(search);
-            }
-        });
+        
+        results = query.toFlowable(BackpressureStrategy.LATEST).flatMap(r -> repoRepository.search(r));
     }
 
     @VisibleForTesting
-    public LiveData<Resource<List<Repo>>> getResults() {
+    public Flowable<Resource<List<Repo>>> getResults() {
         return results;
     }
 
     public void setQuery(@NonNull String originalInput) {
         String input = originalInput.toLowerCase(Locale.getDefault()).trim();
-        if (Objects.equals(input, query.getValue())) {
+        if (TextUtils.isEmpty(input))
             return;
-        }
         nextPageHandler.reset();
-        query.setValue(input);
+        this.input = input;
+        query.onNext(input);
     }
 
     @VisibleForTesting
-    public LiveData<LoadMoreState> getLoadMoreStatus() {
+    public Observable<LoadMoreState> getLoadMoreStatus() {
         return nextPageHandler.getLoadMoreState();
     }
 
     @VisibleForTesting
     public void loadNextPage() {
-        String value = query.getValue();
-        if (value == null || value.trim().length() == 0) {
-            return;
-        }
-        nextPageHandler.queryNextPage(value);
+        nextPageHandler.queryNextPage(input);
     }
 
     void refresh() {
-        if (query.getValue() != null) {
-            query.setValue(query.getValue());
-        }
+        query.replay();
     }
 
     static class LoadMoreState {
@@ -118,10 +109,8 @@ public class SearchViewModel extends ViewModel {
     }
 
     @VisibleForTesting
-    static class NextPageHandler implements Observer<Resource<Boolean>> {
-        @Nullable
-        private LiveData<Resource<Boolean>> nextPageLiveData;
-        private final MutableLiveData<LoadMoreState> loadMoreState = new MutableLiveData<>();
+    static class NextPageHandler {
+        private final PublishSubject<LoadMoreState> loadMoreState = PublishSubject.create();
         private String query;
         private final RepoRepository repository;
         @VisibleForTesting
@@ -137,15 +126,16 @@ public class SearchViewModel extends ViewModel {
             if (Objects.equals(this.query, query)) {
                 return;
             }
-            unregister();
+
             this.query = query;
-            nextPageLiveData = repository.searchNextPage(query);
-            loadMoreState.setValue(new LoadMoreState(true, null));
+
+            loadMoreState.onNext(new LoadMoreState(true, null));
             //noinspection ConstantConditions
-            nextPageLiveData.observeForever(this);
+            repository.searchNextPage(query)
+                    .subscribe(r->{this.onChanged(r);});
         }
 
-        @Override
+
         public void onChanged(@Nullable Resource<Boolean> result) {
             if (result == null) {
                 reset();
@@ -153,36 +143,24 @@ public class SearchViewModel extends ViewModel {
                 switch (result.status) {
                     case SUCCESS:
                         hasMore = Boolean.TRUE.equals(result.data);
-                        unregister();
-                        loadMoreState.setValue(new LoadMoreState(false, null));
+                        loadMoreState.onNext(new LoadMoreState(false, null));
                         break;
                     case ERROR:
                         hasMore = true;
-                        unregister();
-                        loadMoreState.setValue(new LoadMoreState(false,
+                        loadMoreState.onNext(new LoadMoreState(false,
                                 result.message));
                         break;
                 }
-            }
-        }
-
-        private void unregister() {
-            if (nextPageLiveData != null) {
-                nextPageLiveData.removeObserver(this);
-                nextPageLiveData = null;
-                if (hasMore) {
-                    query = null;
-                }
+                loadMoreState.onComplete();
             }
         }
 
         private void reset() {
-            unregister();
             hasMore = true;
-            loadMoreState.setValue(new LoadMoreState(false, null));
+            loadMoreState.onNext(new LoadMoreState(false, null));
         }
 
-        MutableLiveData<LoadMoreState> getLoadMoreState() {
+        Observable<LoadMoreState> getLoadMoreState() {
             return loadMoreState;
         }
     }

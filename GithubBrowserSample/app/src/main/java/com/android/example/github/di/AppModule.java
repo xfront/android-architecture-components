@@ -30,32 +30,33 @@ import javax.inject.Singleton;
 import dagger.Module;
 import dagger.Provides;
 import retrofit2.Retrofit;
+import retrofit2.adapter.rxjava2.RxJava2CallAdapterFactory;
 import retrofit2.converter.gson.GsonConverterFactory;
 
 @Module(includes = ViewModelModule.class)
 class AppModule {
     @Singleton @Provides
-    GithubService provideGithubService() {
+    static GithubService provideGithubService() {
         return new Retrofit.Builder()
                 .baseUrl("https://api.github.com/")
                 .addConverterFactory(GsonConverterFactory.create())
-                .addCallAdapterFactory(new LiveDataCallAdapterFactory())
+                .addCallAdapterFactory(RxJava2CallAdapterFactory.createAsync())
                 .build()
                 .create(GithubService.class);
     }
 
     @Singleton @Provides
-    GithubDb provideDb(Application app) {
+    static GithubDb provideDb(Application app) {
         return Room.databaseBuilder(app, GithubDb.class,"github.db").build();
     }
 
     @Singleton @Provides
-    UserDao provideUserDao(GithubDb db) {
+    static UserDao provideUserDao(GithubDb db) {
         return db.userDao();
     }
 
     @Singleton @Provides
-    RepoDao provideRepoDao(GithubDb db) {
+    static RepoDao provideRepoDao(GithubDb db) {
         return db.repoDao();
     }
 }

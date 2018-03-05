@@ -16,27 +16,21 @@
 
 package com.android.example.github.repository;
 
-import com.android.example.github.api.ApiResponse;
 import com.android.example.github.api.GithubService;
-import com.android.example.github.api.RepoSearchResponse;
 import com.android.example.github.db.GithubDb;
 import com.android.example.github.vo.RepoSearchResult;
 import com.android.example.github.vo.Resource;
 
-import android.arch.lifecycle.LiveData;
-import android.arch.lifecycle.MutableLiveData;
-
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.Callable;
 
-import retrofit2.Response;
+import io.reactivex.Flowable;
 
 /**
  * A task that reads the search result in the database and fetches the next page, if it has one.
  */
-public class FetchNextSearchPageTask implements Runnable {
-    private final MutableLiveData<Resource<Boolean>> liveData = new MutableLiveData<>();
+public class FetchNextSearchPageTask implements Callable {
     private final String query;
     private final GithubService githubService;
     private final GithubDb db;
@@ -47,48 +41,33 @@ public class FetchNextSearchPageTask implements Runnable {
         this.db = db;
     }
 
-    @Override
-    public void run() {
+    public Flowable<Resource<Boolean>> call() {
         RepoSearchResult current = db.repoDao().findSearchResult(query);
-        if(current == null) {
-            liveData.postValue(null);
-            return;
+        if (current == null) {
+            return Flowable.empty();
         }
         final Integer nextPage = current.next;
         if (nextPage == null) {
-            liveData.postValue(Resource.success(false));
-            return;
+            return Flowable.just(Resource.success(false));
         }
-        try {
-            Response<RepoSearchResponse> response = githubService
-                    .searchRepos(query, nextPage).execute();
-            ApiResponse<RepoSearchResponse> apiResponse = new ApiResponse<>(response);
-            if (apiResponse.isSuccessful()) {
-                // we merge all repo ids into 1 list so that it is easier to fetch the result list.
-                List<Integer> ids = new ArrayList<>();
-                ids.addAll(current.repoIds);
-                //noinspection ConstantConditions
-                ids.addAll(apiResponse.body.getRepoIds());
-                RepoSearchResult merged = new RepoSearchResult(query, ids,
-                        apiResponse.body.getTotal(), apiResponse.getNextPage());
-                try {
-                    db.beginTransaction();
-                    db.repoDao().insert(merged);
-                    db.repoDao().insertRepos(apiResponse.body.getItems());
-                    db.setTransactionSuccessful();
-                } finally {
-                    db.endTransaction();
-                }
-                liveData.postValue(Resource.success(apiResponse.getNextPage() != null));
-            } else {
-                liveData.postValue(Resource.error(apiResponse.errorMessage, true));
-            }
-        } catch (IOException e) {
-            liveData.postValue(Resource.error(e.getMessage(), true));
-        }
-    }
 
-    LiveData<Resource<Boolean>> getLiveData() {
-        return liveData;
+        return githubService.searchRepos(query, nextPage).map(r -> {
+            // we merge all repo ids into 1 list so that it is easier to fetch the result list.
+            List<Integer> ids = new ArrayList<>();
+            ids.addAll(current.repoIds);
+            //noinspection ConstantConditions
+            ids.addAll(r.getRepoIds());
+            RepoSearchResult merged = new RepoSearchResult(query, ids,
+                    r.getTotal(), r.getNextPage());
+            try {
+                db.beginTransaction();
+                db.repoDao().insert(merged);
+                db.repoDao().insertRepos(r.getItems());
+                db.setTransactionSuccessful();
+            } finally {
+                db.endTransaction();
+            }
+            return (Resource.success(r.getNextPage() != null));
+        });
     }
 }

@@ -17,11 +17,15 @@
 package com.android.example.github.db;
 
 import com.android.example.github.vo.User;
-import android.arch.lifecycle.LiveData;
+import com.google.common.base.Optional;
+
 import android.arch.persistence.room.Dao;
 import android.arch.persistence.room.Insert;
 import android.arch.persistence.room.OnConflictStrategy;
 import android.arch.persistence.room.Query;
+
+
+import io.reactivex.Flowable;
 
 /**
  * Interface for database access for User related operations.
@@ -32,5 +36,5 @@ public interface UserDao {
     void insert(User user);
 
     @Query("SELECT * FROM user WHERE login = :login")
-    LiveData<User> findByLogin(String login);
+    Flowable<Optional<User>> findByLogin(String login);
 }

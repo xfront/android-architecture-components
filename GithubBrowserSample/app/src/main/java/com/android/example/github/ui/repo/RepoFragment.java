@@ -26,8 +26,6 @@ import com.android.example.github.vo.Repo;
 import com.android.example.github.vo.Resource;
 
 import android.arch.lifecycle.LifecycleRegistry;
-import android.arch.lifecycle.LifecycleRegistryOwner;
-import android.arch.lifecycle.LiveData;
 import android.arch.lifecycle.ViewModelProvider;
 import android.arch.lifecycle.ViewModelProviders;
 import android.databinding.DataBindingComponent;
@@ -43,6 +41,8 @@ import java.util.Collections;
 
 import javax.inject.Inject;
 
+import io.reactivex.Flowable;
+
 /**
  * The UI Controller for displaying a Github Repo's information with its contributors.
  */
@@ -51,6 +51,8 @@ public class RepoFragment extends Fragment implements Injectable {
     private static final String REPO_OWNER_KEY = "repo_owner";
 
     private static final String REPO_NAME_KEY = "repo_name";
+
+    private final LifecycleRegistry lifecycleRegistry = new LifecycleRegistry(this);
 
     @Inject
     ViewModelProvider.Factory viewModelFactory;
@@ -65,6 +67,11 @@ public class RepoFragment extends Fragment implements Injectable {
     AutoClearedValue<ContributorAdapter> adapter;
 
     @Override
+    public LifecycleRegistry getLifecycle() {
+        return lifecycleRegistry;
+    }
+
+    @Override
     public void onActivityCreated(@Nullable Bundle savedInstanceState) {
         super.onActivityCreated(savedInstanceState);
         repoViewModel = ViewModelProviders.of(this, viewModelFactory).get(RepoViewModel.class);
@@ -76,9 +83,8 @@ public class RepoFragment extends Fragment implements Injectable {
         } else {
             repoViewModel.setId(null, null);
         }
-        LiveData<Resource<Repo>> repo = repoViewModel.getRepo();
-        repo.observe(this, resource -> {
-            binding.get().setRepo(resource == null ? null : resource.data);
+        repoViewModel.getRepo().subscribe(resource -> {
+            binding.get().setRepo(resource.data.orNull());
             binding.get().setRepoResource(resource);
             binding.get().executePendingBindings();
         });
@@ -91,10 +97,10 @@ public class RepoFragment extends Fragment implements Injectable {
     }
 
     private void initContributorList(RepoViewModel viewModel) {
-        viewModel.getContributors().observe(this, listResource -> {
-            // we don't need any null checks here for the adapter since LiveData guarantees that
+        viewModel.getContributors().subscribe(listResource -> {
+            // we don't need any null checks here for the adapter since Flowable guarantees that
             // it won't call us if fragment is stopped or not started.
-            if (listResource != null && listResource.data != null) {
+            if (listResource.data != null) {
                 adapter.get().replace(listResource.data);
             } else {
                 //noinspection ConstantConditions

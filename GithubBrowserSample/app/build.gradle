@@ -61,13 +61,26 @@ dependencies {
     implementation deps.support.recyclerview
     implementation deps.support.cardview
     implementation deps.support.design
-    implementation deps.room.runtime
+
     implementation deps.lifecycle.runtime
     implementation deps.lifecycle.extensions
     implementation deps.lifecycle.java8
+    implementation deps.glide
+
+    //ROOM
+    implementation deps.room.runtime
+    implementation deps.room.rxjava2
+    implementation deps.room.guava
+    annotationProcessor deps.room.compiler
+
+    //retrofit
     implementation deps.retrofit.runtime
     implementation deps.retrofit.gson
-    implementation deps.glide
+    implementation deps.retrofit.rxjava2
+
+    // RxJava
+    implementation deps.rx_android
+    implementation deps.rxjava2
 
     implementation deps.dagger.runtime
     implementation deps.dagger.android

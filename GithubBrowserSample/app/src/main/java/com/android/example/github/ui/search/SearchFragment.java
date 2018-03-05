@@ -37,6 +37,7 @@ import android.support.v4.app.Fragment;
 import android.support.v4.app.FragmentActivity;
 import android.support.v7.widget.LinearLayoutManager;
 import android.support.v7.widget.RecyclerView;
+import android.support.v7.widget.RecyclerView.OnScrollListener;
 import android.view.KeyEvent;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -45,6 +46,8 @@ import android.view.inputmethod.EditorInfo;
 import android.view.inputmethod.InputMethodManager;
 
 import javax.inject.Inject;
+
+import io.reactivex.android.schedulers.AndroidSchedulers;
 
 public class SearchFragment extends Fragment implements Injectable {
 
@@ -116,7 +119,7 @@ public class SearchFragment extends Fragment implements Injectable {
 
     private void initRecyclerView() {
 
-        binding.get().repoList.addOnScrollListener(new RecyclerView.OnScrollListener() {
+        binding.get().repoList.addOnScrollListener(new OnScrollListener() {
             @Override
             public void onScrolled(RecyclerView recyclerView, int dx, int dy) {
                 LinearLayoutManager layoutManager = (LinearLayoutManager)
@@ -128,7 +131,7 @@ public class SearchFragment extends Fragment implements Injectable {
                 }
             }
         });
-        searchViewModel.getResults().observe(this, result -> {
+        searchViewModel.getResults().observeOn(AndroidSchedulers.mainThread()).subscribe(result -> {
             binding.get().setSearchResource(result);
             binding.get().setResultCount((result == null || result.data == null)
                     ? 0 : result.data.size());
@@ -136,7 +139,7 @@ public class SearchFragment extends Fragment implements Injectable {
             binding.get().executePendingBindings();
         });
 
-        searchViewModel.getLoadMoreStatus().observe(this, loadingMore -> {
+        searchViewModel.getLoadMoreStatus().observeOn(AndroidSchedulers.mainThread()).subscribe(loadingMore -> {
             if (loadingMore == null) {
                 binding.get().setLoadingMore(false);
             } else {

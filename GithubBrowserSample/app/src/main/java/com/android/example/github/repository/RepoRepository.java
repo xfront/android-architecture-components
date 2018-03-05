@@ -16,35 +16,34 @@
 
 package com.android.example.github.repository;
 
+import android.support.annotation.NonNull;
+import android.support.annotation.Nullable;
+
 import com.android.example.github.AppExecutors;
-import com.android.example.github.api.ApiResponse;
 import com.android.example.github.api.GithubService;
 import com.android.example.github.api.RepoSearchResponse;
 import com.android.example.github.db.GithubDb;
 import com.android.example.github.db.RepoDao;
-import com.android.example.github.util.AbsentLiveData;
 import com.android.example.github.util.RateLimiter;
 import com.android.example.github.vo.Contributor;
 import com.android.example.github.vo.Repo;
 import com.android.example.github.vo.RepoSearchResult;
 import com.android.example.github.vo.Resource;
+import com.google.common.base.Optional;
 
-import android.arch.lifecycle.LiveData;
-import android.arch.lifecycle.Transformations;
-import android.support.annotation.NonNull;
-import android.support.annotation.Nullable;
-
+import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
 import javax.inject.Inject;
 import javax.inject.Singleton;
 
+import io.reactivex.Flowable;
 import timber.log.Timber;
 
 /**
  * Repository that handles Repo instances.
- *
+ * <p>
  * unfortunate naming :/ .
  * Repo - value object name
  * Repository - type of this class.
@@ -64,15 +63,15 @@ public class RepoRepository {
 
     @Inject
     public RepoRepository(AppExecutors appExecutors, GithubDb db, RepoDao repoDao,
-            GithubService githubService) {
+                          GithubService githubService) {
         this.db = db;
         this.repoDao = repoDao;
         this.githubService = githubService;
         this.appExecutors = appExecutors;
     }
 
-    public LiveData<Resource<List<Repo>>> loadRepos(String owner) {
-        return new NetworkBoundResource<List<Repo>, List<Repo>>(appExecutors) {
+    public Flowable<Resource<List<Repo>>> loadRepos(String owner) {
+        return new NetworkBoundResource<List<Repo>, List<Repo>>() {
             @Override
             protected void saveCallResult(@NonNull List<Repo> item) {
                 repoDao.insertRepos(item);
@@ -80,56 +79,56 @@ public class RepoRepository {
 
             @Override
             protected boolean shouldFetch(@Nullable List<Repo> data) {
-                return data == null || data.isEmpty() || repoListRateLimit.shouldFetch(owner);
+                return data.isEmpty() || repoListRateLimit.shouldFetch(owner);
             }
 
             @NonNull
             @Override
-            protected LiveData<List<Repo>> loadFromDb() {
+            protected Flowable<List<Repo>> loadFromDb() {
                 return repoDao.loadRepositories(owner);
             }
 
             @NonNull
             @Override
-            protected LiveData<ApiResponse<List<Repo>>> createCall() {
+            protected Flowable<List<Repo>> fetchFromNet() {
                 return githubService.getRepos(owner);
             }
 
             @Override
-            protected void onFetchFailed() {
+            protected void onFetchFailed(Throwable e) {
                 repoListRateLimit.reset(owner);
             }
-        }.asLiveData();
+        }.load();
     }
 
-    public LiveData<Resource<Repo>> loadRepo(String owner, String name) {
-        return new NetworkBoundResource<Repo, Repo>(appExecutors) {
+    public Flowable<Resource<Optional<Repo>>> loadRepo(String owner, String name) {
+        return new NetworkBoundResource<Optional<Repo>, Repo>() {
             @Override
             protected void saveCallResult(@NonNull Repo item) {
                 repoDao.insert(item);
             }
 
             @Override
-            protected boolean shouldFetch(@Nullable Repo data) {
-                return data == null;
+            protected boolean shouldFetch(@Nullable Optional<Repo> data) {
+                return !data.isPresent();
             }
 
             @NonNull
             @Override
-            protected LiveData<Repo> loadFromDb() {
+            protected Flowable<Optional<Repo>> loadFromDb() {
                 return repoDao.load(owner, name);
             }
 
             @NonNull
             @Override
-            protected LiveData<ApiResponse<Repo>> createCall() {
+            protected Flowable<Repo> fetchFromNet() {
                 return githubService.getRepo(owner, name);
             }
-        }.asLiveData();
+        }.load();
     }
 
-    public LiveData<Resource<List<Contributor>>> loadContributors(String owner, String name) {
-        return new NetworkBoundResource<List<Contributor>, List<Contributor>>(appExecutors) {
+    public Flowable<Resource<List<Contributor>>> loadContributors(String owner, String name) {
+        return new NetworkBoundResource<List<Contributor>, List<Contributor>>() {
             @Override
             protected void saveCallResult(@NonNull List<Contributor> contributors) {
                 for (Contributor contributor : contributors) {
@@ -157,27 +156,24 @@ public class RepoRepository {
 
             @NonNull
             @Override
-            protected LiveData<List<Contributor>> loadFromDb() {
+            protected Flowable<List<Contributor>> loadFromDb() {
                 return repoDao.loadContributors(owner, name);
             }
 
             @NonNull
             @Override
-            protected LiveData<ApiResponse<List<Contributor>>> createCall() {
+            protected Flowable<List<Contributor>> fetchFromNet() {
                 return githubService.getContributors(owner, name);
             }
-        }.asLiveData();
+        }.load();
     }
 
-    public LiveData<Resource<Boolean>> searchNextPage(String query) {
-        FetchNextSearchPageTask fetchNextSearchPageTask = new FetchNextSearchPageTask(
-                query, githubService, db);
-        appExecutors.networkIO().execute(fetchNextSearchPageTask);
-        return fetchNextSearchPageTask.getLiveData();
+    public Flowable<Resource<Boolean>> searchNextPage(String query) {
+        return new FetchNextSearchPageTask(query, githubService, db).call();
     }
 
-    public LiveData<Resource<List<Repo>>> search(String query) {
-        return new NetworkBoundResource<List<Repo>, RepoSearchResponse>(appExecutors) {
+    public Flowable<Resource<List<Repo>>> search(String query) {
+        return new NetworkBoundResource<List<Repo>, RepoSearchResponse>() {
 
             @Override
             protected void saveCallResult(@NonNull RepoSearchResponse item) {
@@ -196,35 +192,27 @@ public class RepoRepository {
 
             @Override
             protected boolean shouldFetch(@Nullable List<Repo> data) {
-                return data == null;
+                return data.isEmpty();
             }
 
             @NonNull
             @Override
-            protected LiveData<List<Repo>> loadFromDb() {
-                return Transformations.switchMap(repoDao.search(query), searchData -> {
-                    if (searchData == null) {
-                        return AbsentLiveData.create();
-                    } else {
-                        return repoDao.loadOrdered(searchData.repoIds);
-                    }
-                });
+            protected Flowable<List<Repo>> loadFromDb() {
+                return repoDao.search(query).flatMap(r -> {
+                            if (r.isPresent())
+                                return repoDao.loadOrdered(r.get().repoIds);
+                            else
+                                return Flowable.just(new ArrayList<Repo>());
+                        }
+                );
             }
 
             @NonNull
             @Override
-            protected LiveData<ApiResponse<RepoSearchResponse>> createCall() {
+            protected Flowable<RepoSearchResponse> fetchFromNet() {
                 return githubService.searchRepos(query);
             }
 
-            @Override
-            protected RepoSearchResponse processResponse(ApiResponse<RepoSearchResponse> response) {
-                RepoSearchResponse body = response.body;
-                if (body != null) {
-                    body.setNextPage(response.getNextPage());
-                }
-                return body;
-            }
-        }.asLiveData();
+        }.load();
     }
 }

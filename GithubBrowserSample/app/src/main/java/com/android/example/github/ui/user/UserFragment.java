@@ -23,7 +23,6 @@ import android.databinding.DataBindingUtil;
 import android.os.Bundle;
 import android.support.annotation.Nullable;
 import android.support.annotation.VisibleForTesting;
-import android.support.v4.app.Fragment;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -31,14 +30,15 @@ import android.view.ViewGroup;
 import com.android.example.github.R;
 import com.android.example.github.binding.FragmentDataBindingComponent;
 import com.android.example.github.databinding.UserFragmentBinding;
-import com.android.example.github.di.Injectable;
 import com.android.example.github.ui.common.NavigationController;
 import com.android.example.github.ui.common.RepoListAdapter;
 import com.android.example.github.util.AutoClearedValue;
 
 import javax.inject.Inject;
 
-public class UserFragment extends Fragment implements Injectable {
+import dagger.android.support.DaggerFragment;
+
+public class UserFragment extends DaggerFragment {
     private static final String LOGIN_KEY = "login";
     @Inject
     ViewModelProvider.Factory viewModelFactory;
@@ -75,8 +75,8 @@ public class UserFragment extends Fragment implements Injectable {
         super.onActivityCreated(savedInstanceState);
         userViewModel = ViewModelProviders.of(this, viewModelFactory).get(UserViewModel.class);
         userViewModel.setLogin(getArguments().getString(LOGIN_KEY));
-        userViewModel.getUser().observe(this, userResource -> {
-            binding.get().setUser(userResource == null ? null : userResource.data);
+        userViewModel.getUser().subscribe(userResource -> {
+            binding.get().setUser(userResource.data.orNull());
             binding.get().setUserResource(userResource);
             // this is only necessary because espresso cannot read data binding callbacks.
             binding.get().executePendingBindings();
@@ -89,7 +89,7 @@ public class UserFragment extends Fragment implements Injectable {
     }
 
     private void initRepoList() {
-        userViewModel.getRepositories().observe(this, repos -> {
+        userViewModel.getRepositories().subscribe(repos -> {
             // no null checks for adapter.get() since LiveData guarantees that we'll not receive
             // the event if fragment is now show.
             if (repos == null) {
