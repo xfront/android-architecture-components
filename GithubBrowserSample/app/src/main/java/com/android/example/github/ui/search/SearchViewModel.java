@@ -16,6 +16,9 @@
 
 package com.android.example.github.ui.search;
 
+import android.arch.lifecycle.LiveData;
+import android.arch.lifecycle.MutableLiveData;
+import android.arch.lifecycle.Transformations;
 import android.arch.lifecycle.ViewModel;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
@@ -23,6 +26,7 @@ import android.support.annotation.VisibleForTesting;
 import android.text.TextUtils;
 
 import com.android.example.github.repository.RepoRepository;
+import com.android.example.github.util.AbsentLiveData;
 import com.android.example.github.util.Objects;
 import com.android.example.github.vo.Repo;
 import com.android.example.github.vo.Resource;
@@ -32,54 +36,61 @@ import java.util.Locale;
 
 import javax.inject.Inject;
 
-import io.reactivex.BackpressureStrategy;
-import io.reactivex.Flowable;
 import io.reactivex.Observable;
-import io.reactivex.Scheduler;
-import io.reactivex.android.schedulers.AndroidSchedulers;
-import io.reactivex.schedulers.Schedulers;
 import io.reactivex.subjects.PublishSubject;
 
 public class SearchViewModel extends ViewModel {
 
-    private final PublishSubject<String> query = PublishSubject.create();
-    private final Flowable<Resource<List<Repo>>> results;
+    private final MutableLiveData<String> query = new MutableLiveData<>();
+
+    private final LiveData<Resource<List<Repo>>> results;
+
     private final NextPageHandler nextPageHandler;
-    private String input;
 
     @Inject
     SearchViewModel(RepoRepository repoRepository) {
         nextPageHandler = new NextPageHandler(repoRepository);
-
-        results = query.toFlowable(BackpressureStrategy.LATEST).flatMap(r -> repoRepository.search(r));
+        results = Transformations.switchMap(query, search -> {
+            if (search == null || search.trim().length() == 0) {
+                return AbsentLiveData.create();
+            } else {
+                return repoRepository.search(search);
+            }
+        });
     }
 
     @VisibleForTesting
-    public Flowable<Resource<List<Repo>>> getResults() {
+    public LiveData<Resource<List<Repo>>> getResults() {
         return results;
     }
 
     public void setQuery(@NonNull String originalInput) {
         String input = originalInput.toLowerCase(Locale.getDefault()).trim();
-        if (TextUtils.isEmpty(input))
+        if (Objects.equals(input, query.getValue())) {
             return;
+        }
         nextPageHandler.reset();
-        this.input = input;
-        query.onNext(input);
+        query.setValue(input);
     }
 
     @VisibleForTesting
-    public Observable<LoadMoreState> getLoadMoreStatus() {
+    public LiveData<LoadMoreState> getLoadMoreStatus() {
         return nextPageHandler.getLoadMoreState();
     }
 
     @VisibleForTesting
     public void loadNextPage() {
-        nextPageHandler.queryNextPage(input);
+        String value = query.getValue();
+        if (value == null || value.trim().length() == 0) {
+            return;
+        }
+        nextPageHandler.queryNextPage(value);
     }
 
     void refresh() {
-        query.replay();
+        if (query.getValue() != null) {
+            query.setValue(query.getValue());
+        }
     }
 
     static class LoadMoreState {
@@ -163,8 +174,10 @@ public class SearchViewModel extends ViewModel {
             loadMoreState.onNext(new LoadMoreState(false, null));
         }
 
-        Observable<LoadMoreState> getLoadMoreState() {
-            return loadMoreState;
+        LiveData<LoadMoreState> getLoadMoreState() {
+            MutableLiveData<LoadMoreState> liveData = new MutableLiveData<LoadMoreState>();
+             loadMoreState.subscribe(r->liveData.postValue(r), e->liveData.postValue(new LoadMoreState(false, e.getMessage())));
+            return liveData;
         }
     }
 }

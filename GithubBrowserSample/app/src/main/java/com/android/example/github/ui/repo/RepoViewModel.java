@@ -16,54 +16,70 @@
 
 package com.android.example.github.ui.repo;
 
-import android.arch.lifecycle.ViewModel;
-import android.support.annotation.VisibleForTesting;
-
 import com.android.example.github.repository.RepoRepository;
+import com.android.example.github.util.AbsentLiveData;
+import com.android.example.github.util.Objects;
 import com.android.example.github.vo.Contributor;
 import com.android.example.github.vo.Repo;
 import com.android.example.github.vo.Resource;
-import com.google.common.base.Optional;
+
+import android.arch.lifecycle.LiveData;
+import android.arch.lifecycle.MutableLiveData;
+import android.arch.lifecycle.Transformations;
+import android.arch.lifecycle.ViewModel;
+import android.support.annotation.VisibleForTesting;
 
 import java.util.List;
 
 import javax.inject.Inject;
 
-import io.reactivex.BackpressureStrategy;
-import io.reactivex.Flowable;
-import io.reactivex.subjects.PublishSubject;
-
 public class RepoViewModel extends ViewModel {
     @VisibleForTesting
-    final PublishSubject<RepoId> repoId;
-    private final Flowable<Resource<Optional<Repo>>> repo;
-    private final Flowable<Resource<List<Contributor>>> contributors;
+    final MutableLiveData<RepoId> repoId;
+    private final LiveData<Resource<Repo>> repo;
+    private final LiveData<Resource<List<Contributor>>> contributors;
 
     @Inject
     public RepoViewModel(RepoRepository repository) {
-        this.repoId = PublishSubject.create();
-        repo = repoId.toFlowable(BackpressureStrategy.LATEST).flatMap(input -> repository.loadRepo(input.owner, input.name));
-        contributors = repoId.toFlowable(BackpressureStrategy.LATEST).flatMap(input -> repository.loadContributors(input.owner, input.name));
+        this.repoId = new MutableLiveData<>();
+        repo = Transformations.switchMap(repoId, input -> {
+            if (input.isEmpty()) {
+                return AbsentLiveData.create();
+            }
+            return repository.loadRepo(input.owner, input.name);
+        });
+        contributors = Transformations.switchMap(repoId, input -> {
+            if (input.isEmpty()) {
+                return AbsentLiveData.create();
+            } else {
+                return repository.loadContributors(input.owner, input.name);
+            }
 
+        });
     }
 
-    public Flowable<Resource<Optional<Repo>>> getRepo() {
+    public LiveData<Resource<Repo>> getRepo() {
         return repo;
     }
 
-    public Flowable<Resource<List<Contributor>>> getContributors() {
+    public LiveData<Resource<List<Contributor>>> getContributors() {
         return contributors;
     }
 
     public void retry() {
-        repo.retry(1);
-        contributors.retry(1);
+        RepoId current = repoId.getValue();
+        if (current != null && !current.isEmpty()) {
+            repoId.setValue(current);
+        }
     }
 
     @VisibleForTesting
     public void setId(String owner, String name) {
         RepoId update = new RepoId(owner, name);
-        repoId.onNext(update);
+        if (Objects.equals(repoId.getValue(), update)) {
+            return;
+        }
+        repoId.setValue(update);
     }
 
     @VisibleForTesting

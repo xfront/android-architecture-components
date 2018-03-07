@@ -26,6 +26,12 @@ android {
         versionCode 1
         versionName "1.0"
         testInstrumentationRunner "com.android.example.github.util.GithubTestRunner"
+
+        javaCompileOptions {
+            annotationProcessorOptions {
+                arguments = ["room.schemaLocation": "$projectDir/schemas".toString()]
+            }
+        }
     }
     buildTypes {
         debug {

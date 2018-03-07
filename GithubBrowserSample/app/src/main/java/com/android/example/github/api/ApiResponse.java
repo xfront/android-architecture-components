@@ -84,7 +84,9 @@ public class ApiResponse<T> {
             while (matcher.find()) {
                 int count = matcher.groupCount();
                 if (count == 2) {
-                    links.put(matcher.group(2), matcher.group(1));
+                    String key = matcher.group(2);
+                    String v = matcher.group(1);
+                    links.put(key, v);
                 }
             }
         }

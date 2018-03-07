@@ -16,6 +16,7 @@
 
 package com.android.example.github.repository;
 
+import android.arch.lifecycle.LiveData;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
 
@@ -29,6 +30,7 @@ import javax.inject.Inject;
 import javax.inject.Singleton;
 
 import io.reactivex.Flowable;
+import io.reactivex.Observable;
 
 /**
  * Repository that handles User objects.
@@ -44,21 +46,21 @@ public class UserRepository {
         this.githubService = githubService;
     }
 
-    public Flowable<Resource<Optional<User>>> loadUser(String login) {
-        return new NetworkBoundResource<Optional<User>, User>() {
+    public LiveData<Resource<User>> loadUser(String login) {
+        return new NetworkBoundResource<User, User>() {
             @Override
             protected void saveCallResult(@NonNull User item) {
                 userDao.insert(item);
             }
 
             @Override
-            protected boolean shouldFetch(@Nullable Optional<User> data) {
-                return !data.isPresent();
+            protected boolean shouldFetch(@Nullable User data) {
+                return data == null;
             }
 
             @NonNull
             @Override
-            protected Flowable<Optional<User>> loadFromDb() {
+            protected LiveData<User> loadFromDb() {
                 return userDao.findByLogin(login);
             }
 
@@ -67,6 +69,6 @@ public class UserRepository {
             protected Flowable<User> fetchFromNet() {
                 return githubService.getUser(login);
             }
-        }.load();
+        }.asLiveData();
     }
 }

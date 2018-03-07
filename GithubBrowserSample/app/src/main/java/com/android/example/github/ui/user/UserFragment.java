@@ -77,10 +77,8 @@ public class UserFragment extends BaseFragment {
         userViewModel = ViewModelProviders.of(this, viewModelFactory).get(UserViewModel.class);
         userViewModel.setLogin(getArguments().getString(LOGIN_KEY));
         userViewModel.getUser()
-                .compose(this.bindToLifecycle())
-                .observeOn(AndroidSchedulers.mainThread())
-                .subscribe(userResource -> {
-                    binding.get().setUser(userResource.data.orNull());
+                    .observe(this, userResource -> {
+                    binding.get().setUser(userResource.data);
                     binding.get().setUserResource(userResource);
                     // this is only necessary because espresso cannot read data binding callbacks.
                     binding.get().executePendingBindings();
@@ -94,9 +92,7 @@ public class UserFragment extends BaseFragment {
 
     private void initRepoList() {
         userViewModel.getRepositories()
-                .compose(this.bindToLifecycle())
-                .observeOn(AndroidSchedulers.mainThread())
-                .subscribe(repos -> {
+                .observe(this,repos -> {
                     // no null checks for adapter.get() since LiveData guarantees that we'll not receive
                     // the event if fragment is now show.
                     if (repos.data == null) {

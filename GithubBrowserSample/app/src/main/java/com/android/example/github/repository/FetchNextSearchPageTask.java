@@ -17,9 +17,11 @@
 package com.android.example.github.repository;
 
 import com.android.example.github.api.GithubService;
+import com.android.example.github.api.RepoSearchResponse;
 import com.android.example.github.db.GithubDb;
 import com.android.example.github.vo.RepoSearchResult;
 import com.android.example.github.vo.Resource;
+import com.google.common.base.Optional;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -43,7 +45,7 @@ public class FetchNextSearchPageTask implements Callable {
     }
 
     public Flowable<Resource<Boolean>> call() {
-        return db.repoDao().search(query)
+        return Flowable.fromCallable(()-> Optional.fromNullable(db.repoDao().findSearchResult(query)))
                 .subscribeOn(Schedulers.io())
                 .flatMap(sr -> {
                     if (!sr.isPresent())

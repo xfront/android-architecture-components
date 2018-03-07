@@ -23,6 +23,7 @@ import android.databinding.DataBindingComponent;
 import android.databinding.DataBindingUtil;
 import android.os.Bundle;
 import android.support.annotation.Nullable;
+import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -33,6 +34,7 @@ import com.android.example.github.databinding.RepoFragmentBinding;
 import com.android.example.github.ui.common.BaseFragment;
 import com.android.example.github.ui.common.NavigationController;
 import com.android.example.github.util.AutoClearedValue;
+import com.trello.rxlifecycle2.android.FragmentEvent;
 
 import java.util.Collections;
 
@@ -49,7 +51,6 @@ public class RepoFragment extends BaseFragment{
 
     private static final String REPO_NAME_KEY = "repo_name";
 
-    private final LifecycleRegistry lifecycleRegistry = new LifecycleRegistry(this);
 
     @Inject
     ViewModelProvider.Factory viewModelFactory;
@@ -70,15 +71,19 @@ public class RepoFragment extends BaseFragment{
     }
 
     @Override
-    public LifecycleRegistry getLifecycle() {
-        return lifecycleRegistry;
-    }
-
-    @Override
     public void onActivityCreated(@Nullable Bundle savedInstanceState) {
         super.onActivityCreated(savedInstanceState);
         repoViewModel = ViewModelProviders.of(this, viewModelFactory).get(RepoViewModel.class);
+        binding.get().setRetryCallback(() -> repoViewModel.retry());
         Bundle args = getArguments();
+        repoViewModel.getRepo()
+                .observe(this, r -> {
+                    binding.get().setRepo(r.data!=null? r.data: null);
+                    binding.get().setRepoResource(r);
+                    binding.get().executePendingBindings();
+                });
+
+
         if (args != null && args.containsKey(REPO_OWNER_KEY) &&
                 args.containsKey(REPO_NAME_KEY)) {
             repoViewModel.setId(args.getString(REPO_OWNER_KEY),
@@ -86,13 +91,6 @@ public class RepoFragment extends BaseFragment{
         } else {
             repoViewModel.setId(null, null);
         }
-        repoViewModel.getRepo()
-                .observeOn(AndroidSchedulers.mainThread())
-                .subscribe(resource -> {
-                    binding.get().setRepo(resource.data.orNull());
-                    binding.get().setRepoResource(resource);
-                    binding.get().executePendingBindings();
-                });
 
         ContributorAdapter adapter = new ContributorAdapter(dataBindingComponent,
                 contributor -> navigationController.navigateToUser(contributor.getLogin()));
@@ -103,9 +101,7 @@ public class RepoFragment extends BaseFragment{
 
     private void initContributorList(RepoViewModel viewModel) {
         viewModel.getContributors()
-                .compose(this.bindToLifecycle())
-                .observeOn(AndroidSchedulers.mainThread())
-                .subscribe(listResource -> {
+                .observe(this, listResource -> {
                     // we don't need any null checks here for the adapter since Flowable guarantees that
                     // it won't call us if fragment is stopped or not started.
                     if (listResource.data != null) {
@@ -123,7 +119,6 @@ public class RepoFragment extends BaseFragment{
                              @Nullable Bundle savedInstanceState) {
         RepoFragmentBinding dataBinding = DataBindingUtil
                 .inflate(inflater, R.layout.repo_fragment, container, false);
-        dataBinding.setRetryCallback(() -> repoViewModel.retry());
         binding = new AutoClearedValue<>(this, dataBinding);
         return dataBinding.getRoot();
     }

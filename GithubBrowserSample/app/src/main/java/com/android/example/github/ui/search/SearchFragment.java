@@ -29,6 +29,7 @@ import android.support.v4.app.FragmentActivity;
 import android.support.v7.widget.LinearLayoutManager;
 import android.support.v7.widget.RecyclerView;
 import android.support.v7.widget.RecyclerView.OnScrollListener;
+import android.util.Log;
 import android.view.KeyEvent;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -43,6 +44,7 @@ import com.android.example.github.ui.common.BaseFragment;
 import com.android.example.github.ui.common.NavigationController;
 import com.android.example.github.ui.common.RepoListAdapter;
 import com.android.example.github.util.AutoClearedValue;
+import com.trello.rxlifecycle2.android.FragmentEvent;
 
 import javax.inject.Inject;
 
@@ -132,9 +134,7 @@ public class SearchFragment extends BaseFragment {
         });
 
         searchViewModel.getResults()
-                .compose(this.bindToLifecycle())
-                .observeOn(AndroidSchedulers.mainThread())
-                .subscribe(result -> {
+                .observe(this, result -> {
                     binding.get().setSearchResource(result);
                     binding.get().setResultCount((result.data == null) ? 0 : result.data.size());
                     adapter.get().replace(result.data);
@@ -142,9 +142,7 @@ public class SearchFragment extends BaseFragment {
                 });
 
         searchViewModel.getLoadMoreStatus()
-                .compose(this.bindToLifecycle())
-                .observeOn(AndroidSchedulers.mainThread())
-                .subscribe(loadingMore -> {
+                .observe(this, loadingMore -> {
                     if (loadingMore == null) {
                         binding.get().setLoadingMore(false);
                     } else {

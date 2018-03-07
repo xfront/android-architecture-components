@@ -16,13 +16,17 @@
 
 package com.android.example.github.repository;
 
+import android.arch.lifecycle.LiveData;
+import android.arch.lifecycle.Transformations;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
 
+import com.android.example.github.api.ApiResponse;
 import com.android.example.github.api.GithubService;
 import com.android.example.github.api.RepoSearchResponse;
 import com.android.example.github.db.GithubDb;
 import com.android.example.github.db.RepoDao;
+import com.android.example.github.util.AbsentLiveData;
 import com.android.example.github.util.RateLimiter;
 import com.android.example.github.vo.Contributor;
 import com.android.example.github.vo.Repo;
@@ -38,6 +42,7 @@ import javax.inject.Inject;
 import javax.inject.Singleton;
 
 import io.reactivex.Flowable;
+import io.reactivex.Observable;
 import timber.log.Timber;
 
 /**
@@ -67,7 +72,7 @@ public class RepoRepository {
         this.githubService = githubService;
     }
 
-    public Flowable<Resource<List<Repo>>> loadRepos(String owner) {
+    public LiveData<Resource<List<Repo>>> loadRepos(String owner) {
         return new NetworkBoundResource<List<Repo>, List<Repo>>() {
             @Override
             protected void saveCallResult(@NonNull List<Repo> item) {
@@ -76,12 +81,12 @@ public class RepoRepository {
 
             @Override
             protected boolean shouldFetch(@Nullable List<Repo> data) {
-                return data.isEmpty() || repoListRateLimit.shouldFetch(owner);
+                return data == null || data.isEmpty() || repoListRateLimit.shouldFetch(owner);
             }
 
             @NonNull
             @Override
-            protected Flowable<List<Repo>> loadFromDb() {
+            protected LiveData<List<Repo>> loadFromDb() {
                 return repoDao.loadRepositories(owner);
             }
 
@@ -95,24 +100,24 @@ public class RepoRepository {
             protected void onFetchFailed(Throwable e) {
                 repoListRateLimit.reset(owner);
             }
-        }.load();
+        }.asLiveData();
     }
 
-    public Flowable<Resource<Optional<Repo>>> loadRepo(String owner, String name) {
-        return new NetworkBoundResource<Optional<Repo>, Repo>() {
+    public LiveData<Resource<Repo>> loadRepo(String owner, String name) {
+        return new NetworkBoundResource<Repo, Repo>() {
             @Override
             protected void saveCallResult(@NonNull Repo item) {
                 repoDao.insert(item);
             }
 
             @Override
-            protected boolean shouldFetch(@Nullable Optional<Repo> data) {
-                return !data.isPresent();
+            protected boolean shouldFetch(@Nullable Repo data) {
+                return data == null;
             }
 
             @NonNull
             @Override
-            protected Flowable<Optional<Repo>> loadFromDb() {
+            protected LiveData<Repo> loadFromDb() {
                 return repoDao.load(owner, name);
             }
 
@@ -121,10 +126,10 @@ public class RepoRepository {
             protected Flowable<Repo> fetchFromNet() {
                 return githubService.getRepo(owner, name);
             }
-        }.load();
+        }.asLiveData();
     }
 
-    public Flowable<Resource<List<Contributor>>> loadContributors(String owner, String name) {
+    public LiveData<Resource<List<Contributor>>> loadContributors(String owner, String name) {
         return new NetworkBoundResource<List<Contributor>, List<Contributor>>() {
             @Override
             protected void saveCallResult(@NonNull List<Contributor> contributors) {
@@ -153,7 +158,7 @@ public class RepoRepository {
 
             @NonNull
             @Override
-            protected Flowable<List<Contributor>> loadFromDb() {
+            protected LiveData<List<Contributor>> loadFromDb() {
                 return repoDao.loadContributors(owner, name);
             }
 
@@ -162,14 +167,14 @@ public class RepoRepository {
             protected Flowable<List<Contributor>> fetchFromNet() {
                 return githubService.getContributors(owner, name);
             }
-        }.load();
+        }.asLiveData();
     }
 
     public Flowable<Resource<Boolean>> searchNextPage(String query) {
         return new FetchNextSearchPageTask(query, githubService, db).call();
     }
 
-    public Flowable<Resource<List<Repo>>> search(String query) {
+    public LiveData<Resource<List<Repo>>> search(String query) {
         return new NetworkBoundResource<List<Repo>, RepoSearchResponse>() {
 
             @Override
@@ -189,19 +194,19 @@ public class RepoRepository {
 
             @Override
             protected boolean shouldFetch(@Nullable List<Repo> data) {
-                return data.isEmpty();
+                return data == null || data.isEmpty();
             }
 
             @NonNull
             @Override
-            protected Flowable<List<Repo>> loadFromDb() {
-                return repoDao.search(query).flatMap(r -> {
-                            if (r.isPresent())
-                                return repoDao.loadOrdered(r.get().repoIds);
-                            else
-                                return Flowable.just(Collections.emptyList());
-                        }
-                );
+            protected LiveData<List<Repo>> loadFromDb() {
+                return Transformations.switchMap(repoDao.search(query), searchData -> {
+                    if (searchData == null) {
+                        return AbsentLiveData.create();
+                    } else {
+                        return repoDao.loadOrdered(searchData.repoIds);
+                    }
+                });
             }
 
             @NonNull
@@ -210,6 +215,6 @@ public class RepoRepository {
                 return githubService.searchRepos(query);
             }
 
-        }.load();
+        }.asLiveData();
     }
 }

@@ -16,6 +16,12 @@
 
 package com.android.example.github.db;
 
+import com.android.example.github.vo.Contributor;
+import com.android.example.github.vo.Repo;
+import com.android.example.github.vo.RepoSearchResult;
+
+import android.arch.lifecycle.LiveData;
+import android.arch.lifecycle.Transformations;
 import android.arch.persistence.room.Dao;
 import android.arch.persistence.room.Insert;
 import android.arch.persistence.room.OnConflictStrategy;
@@ -23,15 +29,8 @@ import android.arch.persistence.room.Query;
 import android.arch.persistence.room.RoomWarnings;
 import android.util.SparseIntArray;
 
-import com.android.example.github.vo.Contributor;
-import com.android.example.github.vo.Repo;
-import com.android.example.github.vo.RepoSearchResult;
-import com.google.common.base.Optional;
-
 import java.util.Collections;
 import java.util.List;
-
-import io.reactivex.Flowable;
 
 /**
  * Interface for database access on Repo related operations.
@@ -52,44 +51,43 @@ public abstract class RepoDao {
     public abstract long createRepoIfNotExists(Repo repo);
 
     @Query("SELECT * FROM repo WHERE owner_login = :login AND name = :name")
-    public abstract Flowable<Optional<Repo>> load(String login, String name);
+    public abstract LiveData<Repo> load(String login, String name);
 
     @SuppressWarnings(RoomWarnings.CURSOR_MISMATCH)
     @Query("SELECT login, avatarUrl, repoName, repoOwner, contributions FROM contributor "
             + "WHERE repoName = :name AND repoOwner = :owner "
             + "ORDER BY contributions DESC")
-    public abstract Flowable<List<Contributor>> loadContributors(String owner, String name);
+    public abstract LiveData<List<Contributor>> loadContributors(String owner, String name);
 
     @Query("SELECT * FROM Repo "
             + "WHERE owner_login = :owner "
             + "ORDER BY stars DESC")
-    public abstract Flowable<List<Repo>> loadRepositories(String owner);
+    public abstract LiveData<List<Repo>> loadRepositories(String owner);
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     public abstract void insert(RepoSearchResult result);
 
     @Query("SELECT * FROM RepoSearchResult WHERE query = :query")
-    public abstract Flowable<Optional<RepoSearchResult>> search(String query);
+    public abstract LiveData<RepoSearchResult> search(String query);
 
-    public Flowable<List<Repo>> loadOrdered(List<Integer> repoIds) {
+    public LiveData<List<Repo>> loadOrdered(List<Integer> repoIds) {
         SparseIntArray order = new SparseIntArray();
         int index = 0;
         for (Integer repoId : repoIds) {
             order.put(repoId, index++);
         }
-
-        return loadById(repoIds).map(list -> {
-            Collections.sort(list, (r1, r2) -> {
+        return Transformations.map(loadById(repoIds), repositories -> {
+            Collections.sort(repositories, (r1, r2) -> {
                 int pos1 = order.get(r1.id);
                 int pos2 = order.get(r2.id);
                 return pos1 - pos2;
             });
-            return list;
+            return repositories;
         });
     }
 
     @Query("SELECT * FROM Repo WHERE id in (:repoIds)")
-    protected abstract Flowable<List<Repo>> loadById(List<Integer> repoIds);
+    protected abstract LiveData<List<Repo>> loadById(List<Integer> repoIds);
 
     @Query("SELECT * FROM RepoSearchResult WHERE query = :query")
     public abstract RepoSearchResult findSearchResult(String query);

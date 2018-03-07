@@ -16,14 +16,19 @@
 
 package com.android.example.github.repository;
 
+import android.arch.lifecycle.LiveData;
+import android.arch.lifecycle.MediatorLiveData;
+import android.arch.lifecycle.MutableLiveData;
+import android.support.annotation.MainThread;
 import android.support.annotation.NonNull;
+import android.support.annotation.Nullable;
+import android.support.annotation.WorkerThread;
 
+import com.android.example.github.util.Objects;
 import com.android.example.github.vo.Resource;
-import com.google.common.util.concurrent.AbstractScheduledService;
 
-import io.reactivex.BackpressureStrategy;
 import io.reactivex.Flowable;
-import io.reactivex.Scheduler;
+import io.reactivex.android.schedulers.AndroidSchedulers;
 import io.reactivex.schedulers.Schedulers;
 
 /**
@@ -35,31 +40,32 @@ import io.reactivex.schedulers.Schedulers;
  * @param <DBType>
  * @param <NetType>
  */
+
+/*
 public abstract class NetworkBoundResource<DBType, NetType> {
 
-    public Flowable<Resource<DBType>> load() {
-        return Flowable.create(emitter -> {
-            emitter.onNext(Resource.loading(null));
-            Flowable<DBType> dbSource = loadFromDb();
-            dbSource.subscribeOn(Schedulers.io())
-                    .subscribe(r -> {
-                        if (shouldFetch(r)) {
-                            emitter.onNext(Resource.loading(null));
-                            fetchFromNet()
-                                    .retry(2)
-                                    .subscribe(this::saveCallResult,
-                                            e -> {
-                                                onFetchFailed(e);
-                                                emitter.onNext(Resource.error(e.getMessage(), null));
-                                            }
-                                    );
-                        } else {
-                            emitter.onNext(Resource.success(r));
-                        }
-                    },
-                    e -> emitter.onNext(Resource.error(e.getMessage(), null)),
-                    () -> emitter.onComplete());
-        }, BackpressureStrategy.LATEST);
+    public LiveData<Resource<DBType>> load() {
+        MutableLiveData liveData = new MutableLiveData();
+        liveData.postValue(Resource.loading(null));
+        Flowable.fromCallable(() -> loadFromDb())
+                .subscribeOn(Schedulers.io())
+                .subscribe(r -> {
+                            if (shouldFetch(r.getValue())) {
+                                liveData.postValue(Resource.loading(r));
+                                fetchFromNet()
+                                        .retry(2)
+                                        .subscribe(this::saveCallResult,
+                                                e -> {
+                                                    onFetchFailed(e);
+                                                    liveData.postValue(Resource.error(e.getMessage(), r));
+                                                }
+                                        );
+                            } else {
+                                liveData.postValue(Resource.success(r));
+                            }
+                        },
+                        e -> liveData.postValue(Resource.error(e.getMessage(), null)));
+        return liveData;
     }
 
     protected void onFetchFailed(Throwable e) {
@@ -74,5 +80,80 @@ public abstract class NetworkBoundResource<DBType, NetType> {
     protected abstract boolean shouldFetch(@NonNull DBType data);
 
     @NonNull
-    protected abstract Flowable<DBType> loadFromDb();
+    protected abstract LiveData<DBType> loadFromDb();
+}
+*/
+public abstract class NetworkBoundResource<DBType, NetType> {
+
+    private final MediatorLiveData<Resource<DBType>> result = new MediatorLiveData<>();
+
+    @MainThread
+    NetworkBoundResource() {
+        result.setValue(Resource.loading(null));
+        LiveData<DBType> dbSource = loadFromDb();
+        result.addSource(dbSource, data -> {
+            result.removeSource(dbSource);
+            if (shouldFetch(data)) {
+                fetchFromNetwork(dbSource);
+            } else {
+                result.addSource(dbSource, newData -> setValue(Resource.success(newData)));
+            }
+        });
+    }
+
+    @MainThread
+    private void setValue(Resource<DBType> newValue) {
+        if (!Objects.equals(result.getValue(), newValue)) {
+            result.setValue(newValue);
+        }
+    }
+
+    private void fetchFromNetwork(final LiveData<DBType> dbSource) {
+        Flowable<NetType> apiResponse = fetchFromNet();
+        // we re-attach dbSource as a new source, it will dispatch its latest value quickly
+        result.addSource(dbSource, newData -> setValue(Resource.loading(newData)));
+        apiResponse.subscribeOn(Schedulers.io())
+                .doOnNext(r -> saveCallResult(processResponse(r)))
+                .observeOn(AndroidSchedulers.mainThread())
+                .subscribe(r->{
+                                result.removeSource(dbSource);
+                                // we specially request a new live data,
+                                // otherwise we will get immediately last cached value,
+                                // which may not be updated with latest results received from network.
+                                result.addSource(loadFromDb(),
+                                        newData -> setValue(Resource.success(newData)));
+                               }
+                        , e -> {
+                            onFetchFailed(e);
+                            result.addSource(dbSource,
+                                    newData -> setValue(Resource.error(e.getMessage(), newData)));
+                            }
+                    );
+    }
+
+    protected void onFetchFailed(Throwable e) {
+    }
+
+    public LiveData<Resource<DBType>> asLiveData() {
+        return result;
+    }
+
+    @WorkerThread
+    protected NetType processResponse(NetType response) {
+        return response;
+    }
+
+    @WorkerThread
+    protected abstract void saveCallResult(@NonNull NetType item);
+
+    @MainThread
+    protected abstract boolean shouldFetch(@Nullable DBType data);
+
+    @NonNull
+    @MainThread
+    protected abstract LiveData<DBType> loadFromDb();
+
+    @NonNull
+    @MainThread
+    protected abstract Flowable<NetType> fetchFromNet();
 }
