@@ -23,6 +23,7 @@ import com.android.example.github.vo.User;
 import java.util.List;
 
 import io.reactivex.Flowable;
+import retrofit2.Response;
 import retrofit2.http.GET;
 import retrofit2.http.Path;
 import retrofit2.http.Query;
@@ -44,8 +45,8 @@ public interface GithubService {
     Flowable<List<Contributor>> getContributors(@Path("owner") String owner, @Path("name") String name);
 
     @GET("search/repositories")
-    Flowable<RepoSearchResponse> searchRepos(@Query("q") String query);
+    Flowable<Response<RepoSearchResponse>> searchRepos(@Query("q") String query);
 
     @GET("search/repositories")
-    Flowable<RepoSearchResponse> searchRepos(@Query("q") String query, @Query("page") int page);
+    Flowable<Response<RepoSearchResponse>> searchRepos(@Query("q") String query, @Query("page") int page);
 }

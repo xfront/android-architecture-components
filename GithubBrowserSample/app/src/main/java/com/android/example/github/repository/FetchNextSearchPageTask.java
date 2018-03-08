@@ -16,6 +16,7 @@
 
 package com.android.example.github.repository;
 
+import com.android.example.github.api.ApiResponse;
 import com.android.example.github.api.GithubService;
 import com.android.example.github.api.RepoSearchResponse;
 import com.android.example.github.db.GithubDb;
@@ -57,22 +58,28 @@ public class FetchNextSearchPageTask implements Callable {
                     }
 
                     return githubService.searchRepos(query, current.next).map(r -> {
-                        // we merge all repo ids into 1 list so that it is easier to fetch the result list.
-                        List<Integer> ids = new ArrayList<>();
-                        ids.addAll(current.repoIds);
-                        //noinspection ConstantConditions
-                        ids.addAll(r.getRepoIds());
-                        RepoSearchResult merged = new RepoSearchResult(query, ids,
-                                r.getTotal(), r.getNextPage());
-                        try {
-                            db.beginTransaction();
-                            db.repoDao().insert(merged);
-                            db.repoDao().insertRepos(r.getItems());
-                            db.setTransactionSuccessful();
-                        } finally {
-                            db.endTransaction();
+                        ApiResponse<RepoSearchResponse> apiResponse = new ApiResponse<RepoSearchResponse>(r);
+                        if (apiResponse.isSuccessful()) {
+                            RepoSearchResponse item = apiResponse.body;
+                            // we merge all repo ids into 1 list so that it is easier to fetch the result list.
+                            List<Integer> ids = new ArrayList<>();
+                            ids.addAll(current.repoIds);
+                            //noinspection ConstantConditions
+                            ids.addAll(item.getRepoIds());
+                            RepoSearchResult merged = new RepoSearchResult(query, ids,
+                                    item.getTotal(), apiResponse.getNextPage());
+                            try {
+                                db.beginTransaction();
+                                db.repoDao().insert(merged);
+                                db.repoDao().insertRepos(item.getItems());
+                                db.setTransactionSuccessful();
+                            } finally {
+                                db.endTransaction();
+                            }
+                            return (Resource.success(apiResponse.getNextPage() != null));
+                        } else {
+                            return Resource.error(apiResponse.errorMessage, false);
                         }
-                        return (Resource.success(r.getNextPage() != null));
                     });
                 });
     }

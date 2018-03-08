@@ -23,7 +23,6 @@ import android.arch.lifecycle.ViewModel;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
 import android.support.annotation.VisibleForTesting;
-import android.text.TextUtils;
 
 import com.android.example.github.repository.RepoRepository;
 import com.android.example.github.util.AbsentLiveData;
@@ -36,7 +35,6 @@ import java.util.Locale;
 
 import javax.inject.Inject;
 
-import io.reactivex.Observable;
 import io.reactivex.subjects.PublishSubject;
 
 public class SearchViewModel extends ViewModel {
@@ -124,8 +122,6 @@ public class SearchViewModel extends ViewModel {
     static class NextPageHandler {
         private final PublishSubject<LoadMoreState> loadMoreState = PublishSubject.create();
         private final RepoRepository repository;
-        @VisibleForTesting
-        boolean hasMore;
         private String query;
 
         @VisibleForTesting
@@ -140,43 +136,39 @@ public class SearchViewModel extends ViewModel {
             }
 
             this.query = query;
-
             loadMoreState.onNext(new LoadMoreState(true, null));
             //noinspection ConstantConditions
             repository.searchNextPage(query)
-                    .subscribe(r -> {
-                        this.onChanged(r);
-                    });
+                    .subscribe(r -> onChanged(r)
+                            , e -> e.printStackTrace());
         }
 
 
         public void onChanged(@Nullable Resource<Boolean> result) {
-            if (result == null) {
-                reset();
-            } else {
-                switch (result.status) {
-                    case SUCCESS:
-                        hasMore = Boolean.TRUE.equals(result.data);
-                        loadMoreState.onNext(new LoadMoreState(false, null));
-                        break;
-                    case ERROR:
-                        hasMore = true;
-                        loadMoreState.onNext(new LoadMoreState(false,
-                                result.message));
-                        break;
-                }
-                loadMoreState.onComplete();
+            switch (result.status) {
+                case SUCCESS:
+                    boolean hasMore = Boolean.TRUE.equals(result.data);
+                    if (hasMore) {
+                        query = null;
+                    }
+                    loadMoreState.onNext(new LoadMoreState(false, null));
+                    break;
+                case ERROR:
+                    loadMoreState.onNext(new LoadMoreState(false,
+                            result.message));
+                    break;
             }
         }
 
         private void reset() {
-            hasMore = true;
+            query = null;
             loadMoreState.onNext(new LoadMoreState(false, null));
         }
 
         LiveData<LoadMoreState> getLoadMoreState() {
             MutableLiveData<LoadMoreState> liveData = new MutableLiveData<LoadMoreState>();
-             loadMoreState.subscribe(r->liveData.postValue(r), e->liveData.postValue(new LoadMoreState(false, e.getMessage())));
+            loadMoreState.onErrorReturn(e->new LoadMoreState(false, e.getMessage()))
+                .subscribe(r -> liveData.postValue(r));
             return liveData;
         }
     }

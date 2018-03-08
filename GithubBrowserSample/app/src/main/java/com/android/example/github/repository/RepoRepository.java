@@ -43,6 +43,7 @@ import javax.inject.Singleton;
 
 import io.reactivex.Flowable;
 import io.reactivex.Observable;
+import retrofit2.Response;
 import timber.log.Timber;
 
 /**
@@ -175,20 +176,24 @@ public class RepoRepository {
     }
 
     public LiveData<Resource<List<Repo>>> search(String query) {
-        return new NetworkBoundResource<List<Repo>, RepoSearchResponse>() {
+        return new NetworkBoundResource<List<Repo>, Response<RepoSearchResponse>>() {
 
             @Override
-            protected void saveCallResult(@NonNull RepoSearchResponse item) {
-                List<Integer> repoIds = item.getRepoIds();
-                RepoSearchResult repoSearchResult = new RepoSearchResult(
-                        query, repoIds, item.getTotal(), item.getNextPage());
-                db.beginTransaction();
-                try {
-                    repoDao.insertRepos(item.getItems());
-                    repoDao.insert(repoSearchResult);
-                    db.setTransactionSuccessful();
-                } finally {
-                    db.endTransaction();
+            protected void saveCallResult(@NonNull Response<RepoSearchResponse> rsp) {
+                ApiResponse<RepoSearchResponse> apiResponse = new ApiResponse<RepoSearchResponse>(rsp);
+                if (apiResponse.isSuccessful()) {
+                    RepoSearchResponse item = apiResponse.body;
+                    List<Integer> repoIds = item.getRepoIds();
+                    RepoSearchResult repoSearchResult = new RepoSearchResult(
+                            query, repoIds, item.getTotal(), apiResponse.getNextPage());
+                    db.beginTransaction();
+                    try {
+                        repoDao.insertRepos(item.getItems());
+                        repoDao.insert(repoSearchResult);
+                        db.setTransactionSuccessful();
+                    } finally {
+                        db.endTransaction();
+                    }
                 }
             }
 
@@ -211,7 +216,7 @@ public class RepoRepository {
 
             @NonNull
             @Override
-            protected Flowable<RepoSearchResponse> fetchFromNet() {
+            protected Flowable<Response<RepoSearchResponse>> fetchFromNet() {
                 return githubService.searchRepos(query);
             }
 
